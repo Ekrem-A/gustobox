@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import PublicMenuPage from "./menu/page";
 
 export default function Home() {
-  redirect("/menu");
+  return <PublicMenuPage />;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase, type MenuItem } from "@/lib/supabase";
 import {
@@ -28,6 +28,8 @@ import {
 
 const categories = ["Tümü", "Sandviçler", "Atıştırmalıklar", "İçecekler"];
 const blankForm = { name: "", description: "", price: "", category: "Sandviçler", image_url: "/gusto-sandwich.jpg" };
+const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const maxImageSize = 5 * 1024 * 1024;
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(price);
@@ -48,6 +50,15 @@ export default function MenuDashboard() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState(blankForm);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const imagePreviewRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewRef.current) URL.revokeObjectURL(imagePreviewRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -131,20 +142,38 @@ export default function MenuDashboard() {
   async function saveItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) return;
+    const client = supabase;
     setIsSaving(true);
     setNotice("");
-    const values = {
-      name: form.name.trim(),
-      description: form.description.trim(),
-      price: Number(form.price),
-      category: form.category,
-      image_url: form.image_url.trim() || "/gusto-sandwich.jpg",
-    };
+    let imageUrl = form.image_url.trim() || "/gusto-sandwich.jpg";
+    let uploadedImagePath: string | null = null;
     try {
+      if (selectedImage) {
+        const extension = selectedImage.type === "image/png" ? "png" : selectedImage.type === "image/webp" ? "webp" : "jpg";
+        uploadedImagePath = `${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await client.storage.from("menu-images").upload(uploadedImagePath, selectedImage, {
+          cacheControl: "3600",
+          contentType: selectedImage.type,
+          upsert: false,
+        });
+        if (uploadError) {
+          setNotice(`Görsel yüklenemedi: ${uploadError.message}`);
+          return;
+        }
+        imageUrl = client.storage.from("menu-images").getPublicUrl(uploadedImagePath).data.publicUrl;
+      }
+      const values = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        price: Number(form.price),
+        category: form.category,
+        image_url: imageUrl,
+      };
       const result = editingItemId
-        ? await supabase.from("menu_items").update(values).eq("id", editingItemId).select().single()
-        : await supabase.from("menu_items").insert({ ...values, available: true, sort_order: items.length + 1 }).select().single();
+        ? await client.from("menu_items").update(values).eq("id", editingItemId).select().single()
+        : await client.from("menu_items").insert({ ...values, available: true, sort_order: items.length + 1 }).select().single();
       if (result.error) {
+        if (uploadedImagePath) await client.storage.from("menu-images").remove([uploadedImagePath]);
         setNotice(`Ürün kaydedilemedi: ${result.error.message}`);
         return;
       }
@@ -155,6 +184,7 @@ export default function MenuDashboard() {
       setActiveCategory("Tümü");
       setSearch("");
       setForm(blankForm);
+      clearSelectedImage();
       setIsModalOpen(false);
       setNotice(editingItemId ? `${savedItem.name} güncellendi.` : `${savedItem.name} menüye eklendi.`);
       setEditingItemId(null);
@@ -163,6 +193,33 @@ export default function MenuDashboard() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    if (!imageTypes.has(file.type)) {
+      setNotice("JPG, PNG veya WebP formatında bir görsel seç.");
+      event.currentTarget.value = "";
+      return;
+    }
+    if (file.size > maxImageSize) {
+      setNotice("Görsel boyutu 5 MB'dan küçük olmalı.");
+      event.currentTarget.value = "";
+      return;
+    }
+    setNotice("");
+    if (imagePreviewRef.current) URL.revokeObjectURL(imagePreviewRef.current);
+    imagePreviewRef.current = URL.createObjectURL(file);
+    setImagePreview(imagePreviewRef.current);
+    setSelectedImage(file);
+  }
+
+  function clearSelectedImage() {
+    if (imagePreviewRef.current) URL.revokeObjectURL(imagePreviewRef.current);
+    imagePreviewRef.current = null;
+    setImagePreview("");
+    setSelectedImage(null);
   }
 
   async function toggleAvailability(item: MenuItem) {
@@ -183,12 +240,14 @@ export default function MenuDashboard() {
   function openNewItem() {
     setEditingItemId(null);
     setForm(blankForm);
+    clearSelectedImage();
     setIsModalOpen(true);
   }
 
   function openEditItem(item: MenuItem) {
     setEditingItemId(item.id);
     setForm({ name: item.name, description: item.description, price: String(item.price), category: item.category, image_url: item.image_url });
+    clearSelectedImage();
     setIsModalOpen(true);
   }
 
@@ -272,7 +331,7 @@ export default function MenuDashboard() {
           <form onSubmit={saveItem}>
             <label>Ürün adı<input autoFocus required maxLength={80} placeholder="Örn. Gusto özel sandviç" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
             <label>Açıklama <span className="optional-label">İSTEĞE BAĞLI</span><textarea rows={3} maxLength={240} placeholder="İçindekileri kısaca anlat..." value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
-            <label><span className="image-field-label"><ImagePlus size={14} /> Ürün fotoğrafı yolu</span><input maxLength={500} placeholder="/gusto-sandwich.jpg" value={form.image_url} onChange={(event) => setForm({ ...form, image_url: event.target.value })} /></label>
+            <div className="image-upload-field"><label className="image-picker"><span className="image-field-label"><ImagePlus size={14} /> Cihazdan fotoğraf seç</span><input className="image-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} /><span className="image-upload-hint">{selectedImage ? selectedImage.name : "JPG, PNG veya WebP · En fazla 5 MB"}</span></label><div className="image-preview" role="img" aria-label="Ürün fotoğrafı önizlemesi" style={{ backgroundImage: `url("${imagePreview || form.image_url}")` }} /></div>
             <div className="form-row"><label>Fiyat<input required type="number" min="1" step="1" placeholder="₺ 0" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} /></label><label>Kategori<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}><option>Sandviçler</option><option>Atıştırmalıklar</option><option>İçecekler</option></select></label></div>
             <div className="modal-actions">{editingItemId && <button className="delete-button" type="button" onClick={() => void deleteItem()}><Trash2 size={15} /> Ürünü sil</button>}<button className="secondary-button" type="button" onClick={() => setIsModalOpen(false)}>Vazgeç</button><button className="primary-button" type="submit" disabled={isSaving}>{isSaving ? <LoaderCircle size={15} /> : editingItemId ? <Save size={15} /> : <Plus size={16} />}{isSaving ? "Kaydediliyor..." : editingItemId ? "Değişiklikleri kaydet" : "Ürünü ekle"}</button></div>
           </form>

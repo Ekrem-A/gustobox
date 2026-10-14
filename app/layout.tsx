@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GustoBox | Menü Yönetimi",
-  description: "GustoBox QR menü ve ürün yönetim paneli.",
+  title: "GustoBox | Bayrampaşa'da İyi Lezzet",
+  description: "GustoBox Kartaltepe menüsünü keşfet: taze sandviç, tost ve waffle.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
