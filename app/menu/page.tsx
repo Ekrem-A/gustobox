@@ -6,6 +6,9 @@ import { ArrowDown, ArrowRight, ArrowUpRight, MapPin, UtensilsCrossed } from "lu
 import { isSupabaseConfigured, supabase, type MenuItem } from "@/lib/supabase";
 import styles from "./menu.module.css";
 
+const storeLocationUrl = "https://maps.google.com/?q=Kartaltepe+Mahallesi+Bayrampasa+Istanbul";
+const instagramUrl = "https://www.instagram.com/gustobox.x/";
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(price);
 }
@@ -53,11 +56,11 @@ export default function PublicMenuPage() {
       <header className={styles.header}>
         <Link className={styles.brand} href="/" aria-label="GustoBox ana sayfa">
           <span className={styles.brandMark}><UtensilsCrossed size={19} /></span>
-          <span>gusto<span className={styles.brandAccent}>box</span><small>KADIKÖY</small></span>
+          <span>gusto<span className={styles.brandAccent}>box</span><small>KARTALTEPE</small></span>
         </Link>
         <nav className={styles.headerNav} aria-label="Sayfa menüsü">
           <a href="#menu-list">Menü</a>
-          <a className={styles.location} href="https://maps.google.com/?q=Kadikoy+Istanbul" target="_blank" rel="noreferrer"><MapPin size={15} /> Kadıköy, İstanbul <ArrowUpRight size={13} /></a>
+          <a className={styles.location} href={storeLocationUrl} target="_blank" rel="noreferrer"><MapPin size={15} /> Kartaltepe, Bayrampaşa <ArrowUpRight size={13} /></a>
           <a className={styles.headerCta} href="#menu-list">Menüyü gör <ArrowRight size={15} /></a>
         </nav>
       </header>
@@ -66,21 +69,21 @@ export default function PublicMenuPage() {
         <div className={styles.heroCopy}>
           <span className={styles.eyebrow}><i /> HER GÜN TAZE, HER ISIRIKTA GUSTO</span>
           <h1>İyi malzeme.<br />Bol lezzet<span>.</span></h1>
-          <p>Kadıköy&apos;de her gün taze hazırlanan sandviçler, atıştırmalıklar ve içecekler.</p>
+          <p>Bayrampaşa&apos;da her gün taze hazırlanan sandviç, tost ve waffle. İyi malzeme, bol lezzet.</p>
           <div className={styles.heroActions}>
             <a href="#menu-list" className={styles.scrollLink}>Menüyü keşfet <ArrowDown size={15} /></a>
-            <a href="https://maps.google.com/?q=Kadikoy+Istanbul" className={styles.heroLocation} target="_blank" rel="noreferrer"><MapPin size={15} /> Yol tarifi</a>
+            <a href={storeLocationUrl} className={styles.heroLocation} target="_blank" rel="noreferrer"><MapPin size={15} /> Yol tarifi</a>
           </div>
         </div>
         <div className={styles.heroImage} role="img" aria-label="GustoBox özel sandviçi" />
-        <span className={styles.heroNote}>GUSTOBOX <i /> KADIKÖY&apos;DE TAZE</span>
+        <span className={styles.heroNote}>GUSTOBOX <i /> BAYRAMPAŞA&apos;DA TAZE</span>
       </section>
 
       <div className={styles.ticker} aria-label="GustoBox menüsü">
         <span>HER GÜN TAZE</span><i />
-        <span>SANDVİÇLER</span><i />
-        <span>ATIŞTIRMALIKLAR</span><i />
-        <span>İÇECEKLER</span>
+        <span>SANDVİÇ</span><i />
+        <span>TOST</span><i />
+        <span>WAFFLE</span>
       </div>
 
       <section className={styles.menuSection} id="menu-list">
@@ -108,11 +111,11 @@ export default function PublicMenuPage() {
       </section>
 
       <section className={styles.locationSection} id="location">
-        <div><span className={styles.locationKicker}>KADIKÖY&apos;DE BULUŞALIM</span><h2>Bir lezzet molası<br />her zaman iyi fikir.</h2></div>
-        <a className={styles.directionsLink} href="https://maps.google.com/?q=Kadikoy+Istanbul" target="_blank" rel="noreferrer"><MapPin size={18} /><span>Kadıköy, İstanbul</span><ArrowUpRight size={17} /></a>
+        <div><span className={styles.locationKicker}>KARTALTEPE, BAYRAMPAŞA</span><h2>Lezzet molan<br />Kartaltepe&apos;de.</h2></div>
+        <a className={styles.directionsLink} href={storeLocationUrl} target="_blank" rel="noreferrer"><MapPin size={18} /><span>Kartaltepe, Bayrampaşa</span><ArrowUpRight size={17} /></a>
       </section>
 
-      <footer className={styles.footer}><span>Güzel şeyler, güzel malzemelerle başlar.</span><span>GUSTOBOX <i>·</i> KADIKÖY</span></footer>
+      <footer className={styles.footer}><span>Güzel şeyler, güzel malzemelerle başlar.</span><span className={styles.footerBrand}>GUSTOBOX <i>·</i> BAYRAMPAŞA <a className={styles.instagramLink} href={instagramUrl} target="_blank" rel="noreferrer" aria-label="GustoBox Instagram hesabını aç">Instagram <ArrowUpRight size={13} /></a></span></footer>
     </main>
   );
 }

@@ -232,18 +232,18 @@ export default function MenuDashboard() {
         </nav>
         <div className="sidebar-bottom">
           <div className="help-card"><span className="help-icon"><Soup size={19} /></span><strong>Bir şeye mi takıldın?</strong><span>GustoBox ekibi yanında.</span><a href="mailto:merhaba@gustobox.com">Bize ulaş <ArrowUpRight size={13} /></a></div>
-          <button className="profile-button" type="button" onClick={() => void signOut()}><span className="avatar">G</span><span className="profile-copy"><strong>GustoBox Kadıköy</strong><small>Çıkış yap</small></span><LogOut size={16} /></button>
+          <button className="profile-button" type="button" onClick={() => void signOut()}><span className="avatar">G</span><span className="profile-copy"><strong>GustoBox Bayrampaşa</strong><small>Çıkış yap</small></span><LogOut size={16} /></button>
         </div>
       </aside>
 
       <main className="main-area" id="top">
         <header className="topbar">
           <div className="breadcrumb"><span>GustoBox</span><span className="crumb-divider">/</span><strong>Menü yönetimi</strong></div>
-          <div className="topbar-actions"><span className="open-status"><i /> Şu an açık</span><button className="icon-button notification-button" type="button" aria-label="Bildirimler" onClick={() => setNotice("Yeni bildirimin yok.")}><Bell size={18} /><i /></button><button className="top-avatar" type="button" aria-label="Hesap menüsü" onClick={() => setNotice("GustoBox Kadıköy hesabı.")}>G</button></div>
+          <div className="topbar-actions"><span className="open-status"><i /> Şu an açık</span><button className="icon-button notification-button" type="button" aria-label="Bildirimler" onClick={() => setNotice("Yeni bildirimin yok.")}><Bell size={18} /><i /></button><button className="top-avatar" type="button" aria-label="Hesap menüsü" onClick={() => setNotice("GustoBox Bayrampaşa hesabı.")}>G</button></div>
         </header>
 
         <div className="page-content">
-          <section className="welcome-row" id="overview"><div><div className="eyebrow"><span className="eyebrow-line" /> GUSTOBOX KADIKÖY</div><h1>Menün, senin kuralların<span>.</span></h1><p>Günün lezzetlerini düzenle, misafirlerine en güzel halinle sun.</p></div><button className="primary-button" type="button" onClick={openNewItem}><Plus size={17} /> Yeni ürün ekle</button></section>
+          <section className="welcome-row" id="overview"><div><div className="eyebrow"><span className="eyebrow-line" /> GUSTOBOX BAYRAMPAŞA</div><h1>Menün, senin kuralların<span>.</span></h1><p>Günün lezzetlerini düzenle, misafirlerine en güzel halinle sun.</p></div><button className="primary-button" type="button" onClick={openNewItem}><Plus size={17} /> Yeni ürün ekle</button></section>
 
           <section className="summary-grid" aria-label="İşletme özeti">
             <article className="summary-card summary-highlight"><div className="summary-top"><span>MENÜDE YAYINDA</span><span className="summary-icon"><Eye size={17} /></span></div><div className="summary-number">{activeCount}<small> ürün</small></div><div className="summary-foot"><span>Misafirlerin şu an görebiliyor</span></div><div className="availability-dots" aria-hidden="true">{items.map((item) => <i key={item.id} className={item.available ? "dot-on" : "dot-off"} />)}</div></article>

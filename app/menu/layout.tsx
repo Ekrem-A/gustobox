@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "GustoBox | Kadıköy'de İyi Lezzet",
-  description: "GustoBox Kadıköy menüsünü keşfet: taze sandviçler, atıştırmalıklar ve içecekler.",
+  title: "GustoBox | Bayrampaşa'da İyi Lezzet",
+  description: "GustoBox Kartaltepe menüsünü keşfet: taze sandviç, tost ve waffle.",
 };
 
 export default function MenuLayout({ children }: { children: ReactNode }) {
