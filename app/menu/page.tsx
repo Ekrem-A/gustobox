@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUpRight, MapPin, UtensilsCrossed } from "lucide-react";
+import Link from "next/link";
+import { ArrowDown, ArrowRight, ArrowUpRight, MapPin, UtensilsCrossed } from "lucide-react";
 import { isSupabaseConfigured, supabase, type MenuItem } from "@/lib/supabase";
 import styles from "./menu.module.css";
 
@@ -50,23 +51,37 @@ export default function PublicMenuPage() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <a className={styles.brand} href="/menu" aria-label="GustoBox menü">
+        <Link className={styles.brand} href="/" aria-label="GustoBox ana sayfa">
           <span className={styles.brandMark}><UtensilsCrossed size={19} /></span>
           <span>gusto<span className={styles.brandAccent}>box</span><small>KADIKÖY</small></span>
-        </a>
-        <a className={styles.location} href="https://maps.google.com/?q=Kadikoy+Istanbul" target="_blank" rel="noreferrer"><MapPin size={15} /> Kadıköy, İstanbul <ArrowUpRight size={13} /></a>
+        </Link>
+        <nav className={styles.headerNav} aria-label="Sayfa menüsü">
+          <a href="#menu-list">Menü</a>
+          <a className={styles.location} href="https://maps.google.com/?q=Kadikoy+Istanbul" target="_blank" rel="noreferrer"><MapPin size={15} /> Kadıköy, İstanbul <ArrowUpRight size={13} /></a>
+          <a className={styles.headerCta} href="#menu-list">Menüyü gör <ArrowRight size={15} /></a>
+        </nav>
       </header>
 
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
           <span className={styles.eyebrow}><i /> HER GÜN TAZE, HER ISIRIKTA GUSTO</span>
-          <h1>GustoBox<br />menüsü<span>.</span></h1>
-          <p>İyi malzeme, bol lezzet. Bugün ne yesek?</p>
-          <a href="#menu-list" className={styles.scrollLink}>Menüyü keşfet <ArrowDown size={15} /></a>
+          <h1>İyi malzeme.<br />Bol lezzet<span>.</span></h1>
+          <p>Kadıköy&apos;de her gün taze hazırlanan sandviçler, atıştırmalıklar ve içecekler.</p>
+          <div className={styles.heroActions}>
+            <a href="#menu-list" className={styles.scrollLink}>Menüyü keşfet <ArrowDown size={15} /></a>
+            <a href="https://maps.google.com/?q=Kadikoy+Istanbul" className={styles.heroLocation} target="_blank" rel="noreferrer"><MapPin size={15} /> Yol tarifi</a>
+          </div>
         </div>
         <div className={styles.heroImage} role="img" aria-label="GustoBox özel sandviçi" />
-        <span className={styles.heroNote}>KADIKÖY&apos;DE<br />TAPTAZE LEZZET</span>
+        <span className={styles.heroNote}>GUSTOBOX <i /> KADIKÖY&apos;DE TAZE</span>
       </section>
+
+      <div className={styles.ticker} aria-label="GustoBox menüsü">
+        <span>HER GÜN TAZE</span><i />
+        <span>SANDVİÇLER</span><i />
+        <span>ATIŞTIRMALIKLAR</span><i />
+        <span>İÇECEKLER</span>
+      </div>
 
       <section className={styles.menuSection} id="menu-list">
         <div className={styles.menuIntro}><div><span className={styles.sectionKicker}>BUGÜNÜN FAVORİLERİ</span><h2>Bir güzellik seç.</h2></div><span className={styles.freshNote}><i /> Günlük taze hazırlanır</span></div>
@@ -90,6 +105,11 @@ export default function PublicMenuPage() {
             </article>
           ))}</div>
         )}
+      </section>
+
+      <section className={styles.locationSection} id="location">
+        <div><span className={styles.locationKicker}>KADIKÖY&apos;DE BULUŞALIM</span><h2>Bir lezzet molası<br />her zaman iyi fikir.</h2></div>
+        <a className={styles.directionsLink} href="https://maps.google.com/?q=Kadikoy+Istanbul" target="_blank" rel="noreferrer"><MapPin size={18} /><span>Kadıköy, İstanbul</span><ArrowUpRight size={17} /></a>
       </section>
 
       <footer className={styles.footer}><span>Güzel şeyler, güzel malzemelerle başlar.</span><span>GUSTOBOX <i>·</i> KADIKÖY</span></footer>
