@@ -7,6 +7,8 @@ import {
   ArrowUpRight,
   Bell,
   Check,
+  ChevronDown,
+  ChevronUp,
   Eye,
   EyeOff,
   ImagePlus,
@@ -29,6 +31,7 @@ import {
 const blankForm = { name: "", description: "", price: "", category: "", image_url: "/gusto-sandwich.jpg" };
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxImageSize = 5 * 1024 * 1024;
+type HeroSlide = { id: string; image_url: string; storage_path: string; sort_order: number };
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(price);
@@ -37,6 +40,7 @@ function formatPrice(price: number) {
 export default function MenuDashboard() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [menuCategories, setMenuCategories] = useState<string[]>([]);
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
@@ -50,6 +54,10 @@ export default function MenuDashboard() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategory, setNewCategory] = useState("");
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [isHeroSlidesModalOpen, setIsHeroSlidesModalOpen] = useState(false);
+  const [selectedHeroImage, setSelectedHeroImage] = useState<File | null>(null);
+  const [isSavingHeroSlide, setIsSavingHeroSlide] = useState(false);
+  const heroImageInputRef = useRef<HTMLInputElement>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState(blankForm);
@@ -88,6 +96,15 @@ export default function MenuDashboard() {
           setMenuCategories([...new Set((data ?? []).map((item) => item.category))]);
         } else if (categoryError) setNotice(`Kategoriler yüklenemedi: ${categoryError.message}`);
         else setMenuCategories((categoryData ?? []).map((category) => category.name));
+
+        const { data: slideData, error: slideError } = await client
+          .from("hero_slides")
+          .select("id, image_url, storage_path, sort_order")
+          .order("sort_order", { ascending: true });
+        if (!isActive) return;
+        if (slideError?.code === "PGRST205" || slideError?.code === "42P01") setHeroSlides([]);
+        else if (slideError) setNotice(`Vitrin görselleri yüklenemedi: ${slideError.message}`);
+        else setHeroSlides((slideData ?? []) as HeroSlide[]);
       } catch {
         if (isActive) setNotice("Supabase bağlantısı kurulamadı. Bağlantı ayarlarını kontrol et.");
       } finally {
@@ -111,6 +128,7 @@ export default function MenuDashboard() {
       else {
         setItems([]);
         setMenuCategories([]);
+        setHeroSlides([]);
       }
       setAuthLoading(false);
     });
@@ -348,6 +366,110 @@ export default function MenuDashboard() {
     }
   }
 
+  function handleHeroImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    if (!imageTypes.has(file.type)) {
+      setNotice("Slider için JPG, PNG veya WebP görsel seç.");
+      event.currentTarget.value = "";
+      return;
+    }
+    if (file.size > maxImageSize) {
+      setNotice("Slider görseli 5 MB'dan küçük olmalı.");
+      event.currentTarget.value = "";
+      return;
+    }
+    setNotice("");
+    setSelectedHeroImage(file);
+  }
+
+  async function addHeroSlide() {
+    if (!supabase || !selectedHeroImage || isSavingHeroSlide) return;
+    const client = supabase;
+    setIsSavingHeroSlide(true);
+    setNotice("");
+    const extension = selectedHeroImage.type === "image/png" ? "png" : selectedHeroImage.type === "image/webp" ? "webp" : "jpg";
+    const storagePath = `hero/${crypto.randomUUID()}.${extension}`;
+    try {
+      const { error: uploadError } = await client.storage.from("menu-images").upload(storagePath, selectedHeroImage, {
+        cacheControl: "3600",
+        contentType: selectedHeroImage.type,
+        upsert: false,
+      });
+      if (uploadError) {
+        setNotice(uploadError.message.toLowerCase().includes("bucket not found")
+          ? "menu-images bucket'ı bulunamadı. Önce Storage migration'ını Supabase'te çalıştır."
+          : `Slider görseli yüklenemedi: ${uploadError.message}`);
+        return;
+      }
+      const imageUrl = client.storage.from("menu-images").getPublicUrl(storagePath).data.publicUrl;
+      const { data, error } = await client
+        .from("hero_slides")
+        .insert({ image_url: imageUrl, storage_path: storagePath, sort_order: heroSlides.length + 1 })
+        .select("id, image_url, storage_path, sort_order")
+        .single();
+      if (error) {
+        await client.storage.from("menu-images").remove([storagePath]);
+        setNotice(error.code === "PGRST205" || error.code === "42P01"
+          ? "Slider tablosu yok. 20261015030000_create_hero_slides.sql migration'ını çalıştır."
+          : `Slider görseli kaydedilemedi: ${error.message}`);
+        return;
+      }
+      setHeroSlides((current) => [...current, data as HeroSlide]);
+      setSelectedHeroImage(null);
+      if (heroImageInputRef.current) heroImageInputRef.current.value = "";
+      setNotice("Vitrin görseli eklendi.");
+    } catch {
+      setNotice("Vitrin görseli kaydedilemedi. Supabase bağlantısını kontrol et.");
+    } finally {
+      setIsSavingHeroSlide(false);
+    }
+  }
+
+  async function removeHeroSlide(slide: HeroSlide) {
+    if (!supabase || isSavingHeroSlide) return;
+    setIsSavingHeroSlide(true);
+    try {
+      const { error } = await supabase.from("hero_slides").delete().eq("id", slide.id);
+      if (error) {
+        setNotice(`Vitrin görseli silinemedi: ${error.message}`);
+        return;
+      }
+      setHeroSlides((current) => current.filter((entry) => entry.id !== slide.id));
+      const { error: storageError } = await supabase.storage.from("menu-images").remove([slide.storage_path]);
+      setNotice(storageError ? "Görsel vitrinden kaldırıldı; Storage dosyası temizlenemedi." : "Vitrin görseli kaldırıldı.");
+    } catch {
+      setNotice("Vitrin görseli silinemedi. Supabase bağlantısını kontrol et.");
+    } finally {
+      setIsSavingHeroSlide(false);
+    }
+  }
+
+  async function moveHeroSlide(index: number, direction: -1 | 1) {
+    if (!supabase || isSavingHeroSlide) return;
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= heroSlides.length) return;
+    const reordered = [...heroSlides];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    setIsSavingHeroSlide(true);
+    try {
+      const results = await Promise.all([
+        supabase.from("hero_slides").update({ sort_order: index + 1 }).eq("id", reordered[index].id),
+        supabase.from("hero_slides").update({ sort_order: targetIndex + 1 }).eq("id", reordered[targetIndex].id),
+      ]);
+      const error = results.find((result) => result.error)?.error;
+      if (error) {
+        setNotice(`Slider sırası güncellenemedi: ${error.message}`);
+        return;
+      }
+      setHeroSlides(reordered.map((slide, slideIndex) => ({ ...slide, sort_order: slideIndex + 1 })));
+    } catch {
+      setNotice("Slider sırası güncellenemedi. Supabase bağlantısını kontrol et.");
+    } finally {
+      setIsSavingHeroSlide(false);
+    }
+  }
+
   return (
     <div className="admin-shell">
       <aside className="sidebar">
@@ -374,7 +496,7 @@ export default function MenuDashboard() {
         </header>
 
         <div className="page-content">
-          <section className="welcome-row" id="overview"><div><div className="eyebrow"><span className="eyebrow-line" /> GUSTOBOX BAYRAMPAŞA</div><h1>Menün, senin kuralların<span>.</span></h1><p>Günün lezzetlerini düzenle, misafirlerine en güzel halinle sun.</p></div><button className="primary-button" type="button" onClick={openNewItem}><Plus size={17} /> Yeni ürün ekle</button></section>
+          <section className="welcome-row" id="overview"><div><div className="eyebrow"><span className="eyebrow-line" /> GUSTOBOX BAYRAMPAŞA</div><h1>Menün, senin kuralların<span>.</span></h1><p>Günün lezzetlerini düzenle, misafirlerine en güzel halinle sun.</p></div><div className="welcome-actions"><button className="secondary-button" type="button" onClick={() => { setSelectedHeroImage(null); setIsHeroSlidesModalOpen(true); }}><ImagePlus size={15} /> Vitrin görselleri{heroSlides.length > 0 && <span className="button-count">{heroSlides.length}</span>}</button><button className="primary-button" type="button" onClick={openNewItem}><Plus size={17} /> Yeni ürün ekle</button></div></section>
 
           <section className="summary-grid" aria-label="İşletme özeti">
             <article className="summary-card summary-highlight"><div className="summary-top"><span>MENÜDE YAYINDA</span><span className="summary-icon"><Eye size={17} /></span></div><div className="summary-number">{activeCount}<small> ürün</small></div><div className="summary-foot"><span>Misafirlerin şu an görebiliyor</span></div><div className="availability-dots" aria-hidden="true">{items.map((item) => <i key={item.id} className={item.available ? "dot-on" : "dot-off"} />)}</div></article>
@@ -417,6 +539,13 @@ export default function MenuDashboard() {
             const productCount = items.filter((item) => item.category === category).length;
             return <div className="category-manager-row" key={category}><div><strong>{category}</strong><small>{productCount > 0 ? `${productCount} ürün · silmek için önce taşı` : "Ürün yok"}</small></div><button className="icon-button category-remove" type="button" aria-label={`${category} kategorisini sil`} title={productCount > 0 ? "Önce ürünleri başka kategoriye taşı" : "Kategoriyi sil"} disabled={productCount > 0 || isSavingCategory} onClick={() => void removeCategory(category)}><Trash2 size={15} /></button></div>;
           })}{menuCategories.length === 0 && <div className="empty-state"><strong>Henüz kategori yok.</strong><span>Menüyü düzenlemek için bir kategori ekle.</span></div>}</div>
+        </section>
+      </div>}
+      {isHeroSlidesModalOpen && <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget && !isSavingHeroSlide) setIsHeroSlidesModalOpen(false); }}>
+        <section className="product-modal hero-slides-modal" role="dialog" aria-modal="true" aria-labelledby="hero-slides-title">
+          <div className="modal-heading"><div><span className="section-kicker">ANA SAYFA VİTRİNİ</span><h2 id="hero-slides-title">Slider görselleri</h2></div><button className="icon-button" type="button" aria-label="Pencereyi kapat" onClick={() => setIsHeroSlidesModalOpen(false)}><X size={19} /></button></div>
+          <div className="hero-slide-upload"><input ref={heroImageInputRef} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Vitrin görseli seç" hidden onChange={handleHeroImageChange} /><button className="secondary-button" type="button" onClick={() => heroImageInputRef.current?.click()}><ImagePlus size={15} /> Görsel seç</button><span className="hero-slide-file-name">{selectedHeroImage?.name ?? "JPG, PNG veya WebP · En fazla 5 MB"}</span><button className="primary-button" type="button" disabled={!selectedHeroImage || isSavingHeroSlide} onClick={() => void addHeroSlide()}>{isSavingHeroSlide ? <LoaderCircle size={15} /> : <Plus size={15} />}{isSavingHeroSlide ? "Yükleniyor..." : "Slayta ekle"}</button></div>
+          <div className="hero-slide-list">{heroSlides.map((slide, index) => <div className="hero-slide-row" key={slide.id}><div className="hero-slide-thumbnail" role="img" aria-label={`Vitrin görseli ${index + 1}`} style={{ backgroundImage: `url("${slide.image_url}")` }} /><div className="hero-slide-copy"><strong>Görsel {index + 1}</strong><small>{index === 0 ? "İlk sırada" : `Sıra ${index + 1}`}</small></div><div className="hero-slide-actions"><button className="icon-button" type="button" aria-label={`Görsel ${index + 1} yukarı taşı`} title="Yukarı taşı" disabled={index === 0 || isSavingHeroSlide} onClick={() => void moveHeroSlide(index, -1)}><ChevronUp size={15} /></button><button className="icon-button" type="button" aria-label={`Görsel ${index + 1} aşağı taşı`} title="Aşağı taşı" disabled={index === heroSlides.length - 1 || isSavingHeroSlide} onClick={() => void moveHeroSlide(index, 1)}><ChevronDown size={15} /></button><button className="icon-button hero-slide-delete" type="button" aria-label={`Görsel ${index + 1} sil`} title="Görseli sil" disabled={isSavingHeroSlide} onClick={() => void removeHeroSlide(slide)}><Trash2 size={15} /></button></div></div>)}{heroSlides.length === 0 && <div className="empty-state hero-slide-empty"><strong>Henüz özel slider görseli yok.</strong><span>Varsayılan sandviç görseli gösterilmeye devam eder.</span></div>}</div>
         </section>
       </div>}
     </div>

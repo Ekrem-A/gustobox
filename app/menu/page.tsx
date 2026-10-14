@@ -8,6 +8,7 @@ import styles from "./menu.module.css";
 
 const storeLocationUrl = "https://maps.google.com/?q=Kartaltepe+Mahallesi+Bayrampasa+Istanbul";
 const instagramUrl = "https://www.instagram.com/gustobox.x/";
+type HeroSlide = { id: string; image_url: string };
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(price);
@@ -16,6 +17,8 @@ function formatPrice(price: number) {
 export default function PublicMenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [menuCategories, setMenuCategories] = useState<string[]>([]);
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
+  const [activeHeroSlide, setActiveHeroSlide] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState("Tümü");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,6 +52,15 @@ export default function PublicMenuPage() {
           setMenuCategories([...new Set((data ?? []).map((item) => item.category))]);
         } else if (categoryError) setError("Menü kategorileri şu an yüklenemedi.");
         else setMenuCategories((categoryData ?? []).map((category) => category.name));
+
+        const { data: slideData, error: slideError } = await client
+          .from("hero_slides")
+          .select("id, image_url")
+          .order("sort_order", { ascending: true });
+        if (!isActive) return;
+        if (slideError?.code !== "PGRST205" && slideError?.code !== "42P01" && slideError) {
+          setError("Vitrin görselleri şu an yüklenemedi.");
+        } else if (!slideError) setHeroSlides((slideData ?? []) as HeroSlide[]);
       } catch {
         if (isActive) setError("Menü bağlantısı kurulamadı. Lütfen biraz sonra tekrar dene.");
       } finally {
@@ -60,8 +72,17 @@ export default function PublicMenuPage() {
     return () => { isActive = false; };
   }, []);
 
+  useEffect(() => {
+    if (heroSlides.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      setActiveHeroSlide((current) => (current + 1) % heroSlides.length);
+    }, 5500);
+    return () => window.clearInterval(timer);
+  }, [heroSlides.length]);
+
   const categories = ["Tümü", ...menuCategories];
   const filteredItems = selectedCategory === "Tümü" ? items : items.filter((item) => item.category === selectedCategory);
+  const activeSlide = heroSlides[activeHeroSlide];
 
   return (
     <main className={styles.page}>
@@ -87,7 +108,8 @@ export default function PublicMenuPage() {
             <a href={storeLocationUrl} className={styles.heroLocation} target="_blank" rel="noreferrer"><MapPin size={15} /> Yol tarifi</a>
           </div>
         </div>
-        <div className={styles.heroImage} role="img" aria-label="GustoBox özel sandviçi" />
+        <div key={activeSlide?.id ?? "default-hero"} className={styles.heroImage} role="img" aria-label={activeSlide ? `GustoBox vitrin görseli ${activeHeroSlide + 1}` : "GustoBox özel sandviçi"} style={activeSlide ? { backgroundImage: `url("${activeSlide.image_url}")` } : undefined} />
+        {heroSlides.length > 1 && <div className={styles.heroSlideControls} role="group" aria-label="Vitrin görselleri">{heroSlides.map((slide, index) => <button key={slide.id} className={`${styles.heroSlideControl}${index === activeHeroSlide ? ` ${styles.activeHeroSlideControl}` : ""}`} type="button" aria-label={`Vitrin görseli ${index + 1}`} aria-pressed={index === activeHeroSlide} onClick={() => setActiveHeroSlide(index)} />)}</div>}
         <span className={styles.heroNote}>GUSTOBOX <i /> BAYRAMPAŞA&apos;DA TAZE</span>
       </section>
 

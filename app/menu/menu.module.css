@@ -36,7 +36,12 @@
 .headerCta:hover { transform: translateY(-2px); background: #a94330; }
 .hero { min-height: 490px; grid-template-columns: 1fr 1fr; padding: 48px max(8vw, calc((100vw - 1100px) / 2)); background: var(--page-tomato); }
 .hero::before { background: none; }
-.heroImage { z-index: 0; inset: 0 0 0 44%; background-image: linear-gradient(90deg, #c95137 0%, #c95137c9 23%, #c9513740 49%, transparent 74%), url('/gusto-sandwich.jpg'); background-position: center, 53% 52%; }
+.heroImage { z-index: 0; inset: 0 0 0 44%; background-image: url('/gusto-sandwich.jpg'); background-position: 53% 52%; animation: hero-image-in .6s ease both; }
+.heroImage::after { position: absolute; inset: 0; background: linear-gradient(90deg, #c95137 0%, #c95137c9 23%, #c9513740 49%, transparent 74%); content: ''; pointer-events: none; }
+.heroSlideControls { position: absolute; right: max(5vw, calc((100vw - 1240px) / 2)); bottom: 56px; z-index: 2; display: flex; align-items: center; gap: 7px; }
+.heroSlideControl { width: 19px; height: 4px; flex: 0 0 auto; padding: 0; border: 0; background: #fff9ed80; cursor: pointer; transition: width .2s ease, background .2s ease; }
+.heroSlideControl.activeHeroSlideControl { width: 31px; background: #f4d36c; }
+@keyframes hero-image-in { from { opacity: .45; } to { opacity: 1; } }
 .heroCopy { z-index: 1; max-width: 520px; padding: 12px 0 24px; }
 .eyebrow { gap: 10px; color: #ffe4ca; font-size: 10px; letter-spacing: 0; }
 .eyebrow i { width: 8px; height: 8px; background: #f4d36c; }
@@ -93,7 +98,9 @@
 	.headerNav { gap: 16px; font-size: 10px; }
 	.headerCta { min-height: 36px; gap: 7px; padding: 0 10px; }
 	.hero { min-height: 455px; grid-template-columns: 1fr; padding: 44px 30px; }
-	.heroImage { inset: 0; background-image: linear-gradient(90deg, #bd492ef5 0%, #bd492edb 46%, #bd492e65 100%), url('/gusto-sandwich.jpg'); background-position: center, 60% 50%; }
+	.heroImage { inset: 0; background-position: 60% 50%; }
+	.heroImage::after { background: linear-gradient(90deg, #bd492ef5 0%, #bd492edb 46%, #bd492e65 100%); }
+	.heroSlideControls { right: 20px; bottom: 45px; }
 	.heroCopy { max-width: 470px; padding: 10px 0 20px; }
 	.hero h1 { margin-top: 19px; font-size: 58px; }
 	.heroCopy p { max-width: 350px; font-size: 13px; }
