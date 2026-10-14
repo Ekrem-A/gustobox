@@ -151,6 +151,16 @@ a { color: inherit; text-decoration: none; }
 .modal-heading { display: flex; align-items: start; justify-content: space-between; margin-bottom: 22px; }.modal-heading h2 { font-size: 23px; }.product-modal form { display: grid; gap: 15px; }.product-modal label { display: grid; gap: 7px; color: #555a51; font-size: 10px; font-weight: 650; }
 .product-modal input, .product-modal textarea, .product-modal select { width: 100%; min-height: 38px; padding: 9px 10px; border: 1px solid #e5e6df; border-radius: 5px; outline: 0; background: #fff; color: #383d36; font-size: 11px; font-weight: 400; }.product-modal textarea { min-height: 72px; resize: vertical; }.product-modal input:focus, .product-modal textarea:focus, .product-modal select:focus { border-color: #78967a; box-shadow: 0 0 0 3px #78967a1c; }
 .optional-label { margin-left: 4px; color: #aaa99e; font-size: 8px; font-weight: 500; letter-spacing: .5px; }.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.modal-actions { display: flex; justify-content: end; gap: 8px; margin-top: 8px; padding-top: 17px; border-top: 1px solid #edede7; }
+.section-heading-actions { display: flex; align-items: center; gap: 8px; }
+.category-modal > form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.category-manager-list { display: grid; max-height: 45vh; gap: 0; margin-top: 18px; overflow-y: auto; border-top: 1px solid #edede7; }
+.category-manager-row { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #edede7; }
+.category-manager-row > div { display: grid; gap: 4px; }
+.category-manager-row strong { color: #42473f; font-size: 11px; }
+.category-manager-row small { color: #92948b; font-size: 9px; }
+.category-remove:disabled { cursor: not-allowed; opacity: .4; }
+.category-manager-list .empty-state { min-height: 100px; }
+@media (max-width: 640px) { .section-heading { align-items: flex-start; flex-direction: column; }.section-heading-actions { width: 100%; justify-content: space-between; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } } @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } } @keyframes toast-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 1180px) {

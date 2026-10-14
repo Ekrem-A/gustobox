@@ -15,6 +15,7 @@ function formatPrice(price: number) {
 
 export default function PublicMenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [menuCategories, setMenuCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("Tümü");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,6 +38,17 @@ export default function PublicMenuPage() {
           setError("Menü tablosu henüz kurulmamış. Supabase SQL Editor'de migration dosyasını çalıştır.");
         } else if (queryError) setError("Menü şu an yüklenemedi. Lütfen biraz sonra tekrar dene.");
         else setItems((data ?? []) as MenuItem[]);
+
+        const { data: categoryData, error: categoryError } = await client
+          .from("menu_categories")
+          .select("name")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+        if (!isActive) return;
+        if (categoryError?.code === "PGRST205" || categoryError?.code === "42P01") {
+          setMenuCategories([...new Set((data ?? []).map((item) => item.category))]);
+        } else if (categoryError) setError("Menü kategorileri şu an yüklenemedi.");
+        else setMenuCategories((categoryData ?? []).map((category) => category.name));
       } catch {
         if (isActive) setError("Menü bağlantısı kurulamadı. Lütfen biraz sonra tekrar dene.");
       } finally {
@@ -48,7 +60,7 @@ export default function PublicMenuPage() {
     return () => { isActive = false; };
   }, []);
 
-  const categories = ["Tümü", ...new Set(items.map((item) => item.category))];
+  const categories = ["Tümü", ...menuCategories];
   const filteredItems = selectedCategory === "Tümü" ? items : items.filter((item) => item.category === selectedCategory);
 
   return (

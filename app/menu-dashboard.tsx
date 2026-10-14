@@ -26,8 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-const categories = ["Tümü", "Sandviçler", "Atıştırmalıklar", "İçecekler"];
-const blankForm = { name: "", description: "", price: "", category: "Sandviçler", image_url: "/gusto-sandwich.jpg" };
+const blankForm = { name: "", description: "", price: "", category: "", image_url: "/gusto-sandwich.jpg" };
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxImageSize = 5 * 1024 * 1024;
 
@@ -37,6 +36,7 @@ function formatPrice(price: number) {
 
 export default function MenuDashboard() {
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [menuCategories, setMenuCategories] = useState<string[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
@@ -47,6 +47,9 @@ export default function MenuDashboard() {
   const [activeCategory, setActiveCategory] = useState("Tümü");
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState(blankForm);
@@ -74,6 +77,17 @@ export default function MenuDashboard() {
           setNotice("Menü tablosu yok. Supabase SQL Editor'de supabase/migrations dosyasını çalıştır.");
         } else if (error) setNotice(`Menü yüklenemedi: ${error.message}`);
         else setItems((data ?? []) as MenuItem[]);
+
+        const { data: categoryData, error: categoryError } = await client
+          .from("menu_categories")
+          .select("name")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+        if (!isActive) return;
+        if (categoryError?.code === "PGRST205" || categoryError?.code === "42P01") {
+          setMenuCategories([...new Set((data ?? []).map((item) => item.category))]);
+        } else if (categoryError) setNotice(`Kategoriler yüklenemedi: ${categoryError.message}`);
+        else setMenuCategories((categoryData ?? []).map((category) => category.name));
       } catch {
         if (isActive) setNotice("Supabase bağlantısı kurulamadı. Bağlantı ayarlarını kontrol et.");
       } finally {
@@ -94,7 +108,10 @@ export default function MenuDashboard() {
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession?.user.app_metadata.role === "admin") void loadItems();
-      else setItems([]);
+      else {
+        setItems([]);
+        setMenuCategories([]);
+      }
       setAuthLoading(false);
     });
 
@@ -109,6 +126,7 @@ export default function MenuDashboard() {
     const matchesSearch = `${item.name} ${item.description}`.toLocaleLowerCase("tr-TR").includes(search.toLocaleLowerCase("tr-TR"));
     return matchesCategory && matchesSearch;
   });
+  const categoryFilters = ["Tümü", ...menuCategories];
   const activeCount = items.filter((item) => item.available).length;
 
   if (!isSupabaseConfigured || !supabase) {
@@ -157,7 +175,9 @@ export default function MenuDashboard() {
           upsert: false,
         });
         if (uploadError) {
-          setNotice(`Görsel yüklenemedi: ${uploadError.message}`);
+          setNotice(uploadError.message.toLowerCase().includes("bucket not found")
+            ? "menu-images bucket'ı yok. Supabase SQL Editor'de 20261015010000_create_menu_image_storage.sql migration'ını çalıştır."
+            : `Görsel yüklenemedi: ${uploadError.message}`);
           return;
         }
         imageUrl = client.storage.from("menu-images").getPublicUrl(uploadedImagePath).data.publicUrl;
@@ -239,7 +259,7 @@ export default function MenuDashboard() {
 
   function openNewItem() {
     setEditingItemId(null);
-    setForm(blankForm);
+    setForm({ ...blankForm, category: menuCategories[0] ?? "" });
     clearSelectedImage();
     setIsModalOpen(true);
   }
@@ -276,6 +296,58 @@ export default function MenuDashboard() {
     if (error) setNotice(`Çıkış yapılamadı: ${error.message}`);
   }
 
+  async function addCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || isSavingCategory) return;
+    const name = newCategory.trim();
+    if (!name) return;
+    setIsSavingCategory(true);
+    try {
+      const { data, error } = await supabase
+        .from("menu_categories")
+        .insert({ name, sort_order: menuCategories.length + 1 })
+        .select("name")
+        .single();
+      if (error) {
+        setNotice(`Kategori eklenemedi: ${error.message}`);
+        return;
+      }
+      setMenuCategories((current) => [...current, data.name]);
+      setNewCategory("");
+      setNotice(`${data.name} kategorisi eklendi.`);
+    } catch {
+      setNotice("Kategori eklenemedi. Supabase bağlantısını kontrol et.");
+    } finally {
+      setIsSavingCategory(false);
+    }
+  }
+
+  async function removeCategory(category: string) {
+    if (!supabase || isSavingCategory) return;
+    const productCount = items.filter((item) => item.category === category).length;
+    if (productCount > 0) {
+      setNotice("Bu kategoriyi silmeden önce ürünlerini başka kategoriye taşı.");
+      return;
+    }
+    setIsSavingCategory(true);
+    try {
+      const { error } = await supabase.from("menu_categories").delete().eq("name", category);
+      if (error) {
+        setNotice(`Kategori silinemedi: ${error.message}`);
+        return;
+      }
+      const remainingCategories = menuCategories.filter((entry) => entry !== category);
+      setMenuCategories(remainingCategories);
+      if (activeCategory === category) setActiveCategory("Tümü");
+      if (form.category === category) setForm((current) => ({ ...current, category: remainingCategories[0] ?? "" }));
+      setNotice(`${category} kategorisi silindi.`);
+    } catch {
+      setNotice("Kategori silinemedi. Supabase bağlantısını kontrol et.");
+    } finally {
+      setIsSavingCategory(false);
+    }
+  }
+
   return (
     <div className="admin-shell">
       <aside className="sidebar">
@@ -308,12 +380,12 @@ export default function MenuDashboard() {
             <article className="summary-card summary-highlight"><div className="summary-top"><span>MENÜDE YAYINDA</span><span className="summary-icon"><Eye size={17} /></span></div><div className="summary-number">{activeCount}<small> ürün</small></div><div className="summary-foot"><span>Misafirlerin şu an görebiliyor</span></div><div className="availability-dots" aria-hidden="true">{items.map((item) => <i key={item.id} className={item.available ? "dot-on" : "dot-off"} />)}</div></article>
             <article className="summary-card"><div className="summary-top"><span>TOPLAM ÜRÜN</span><span className="summary-icon coral-icon"><ShoppingBag size={17} /></span></div><div className="summary-number">{items.length}</div><div className="summary-foot"><span>Menündeki tüm ürünler</span></div><div className="mini-bars" aria-hidden="true">{items.map((item) => <i key={item.id} />)}</div></article>
             <article className="summary-card"><div className="summary-top"><span>GİZLİ ÜRÜN</span><span className="summary-icon blue-icon"><EyeOff size={17} /></span></div><div className="summary-number">{items.length - activeCount}</div><div className="summary-foot"><span>QR menüde gösterilmiyor</span></div><div className="prep-track"><span style={{ width: `${items.length ? ((items.length - activeCount) / items.length) * 100 : 0}%` }} /></div></article>
-            <article className="summary-card"><div className="summary-top"><span>KATEGORİ</span><span className="summary-icon green-icon"><MenuIcon size={17} /></span></div><div className="summary-number">{categories.length - 1}</div><div className="summary-foot"><span>Menü kategorisi</span></div><div className="availability-dots" aria-hidden="true">{categories.slice(1).map((category) => <i key={category} className="dot-on" />)}</div></article>
+            <article className="summary-card"><div className="summary-top"><span>KATEGORİ</span><span className="summary-icon green-icon"><MenuIcon size={17} /></span></div><div className="summary-number">{menuCategories.length}</div><div className="summary-foot"><span>Menü kategorisi</span></div><div className="availability-dots" aria-hidden="true">{menuCategories.map((category) => <i key={category} className="dot-on" />)}</div></article>
           </section>
 
           <section className="menu-section" id="menu">
-            <div className="section-heading"><div><div className="section-kicker">VİTRİNİN</div><h2>Menü ürünleri <span>{items.length}</span></h2></div><a className="secondary-button" href="/menu" target="_blank" rel="noreferrer"><Eye size={16} /> Menüyü önizle</a></div>
-            <div className="menu-toolbar"><div className="category-tabs" role="tablist" aria-label="Ürün kategorileri">{categories.map((category) => <button key={category} type="button" role="tab" aria-selected={activeCategory === category} className={`category-tab${activeCategory === category ? " selected" : ""}`} onClick={() => setActiveCategory(category)}>{category}<span>{category === "Tümü" ? items.length : items.filter((item) => item.category === category).length}</span></button>)}</div><label className="search-box"><Search size={16} /><input aria-label="Menüde ara" placeholder="Menüde ara..." value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
+            <div className="section-heading"><div><div className="section-kicker">VİTRİNİN</div><h2>Menü ürünleri <span>{items.length}</span></h2></div><div className="section-heading-actions"><button className="secondary-button" type="button" onClick={() => { setNewCategory(""); setIsCategoryModalOpen(true); }}><Plus size={15} /> Kategorileri yönet</button><a className="secondary-button" href="/menu" target="_blank" rel="noreferrer"><Eye size={16} /> Menüyü önizle</a></div></div>
+            <div className="menu-toolbar"><div className="category-tabs" role="tablist" aria-label="Ürün kategorileri">{categoryFilters.map((category) => <button key={category} type="button" role="tab" aria-selected={activeCategory === category} className={`category-tab${activeCategory === category ? " selected" : ""}`} onClick={() => setActiveCategory(category)}>{category}<span>{category === "Tümü" ? items.length : items.filter((item) => item.category === category).length}</span></button>)}</div><label className="search-box"><Search size={16} /><input aria-label="Menüde ara" placeholder="Menüde ara..." value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
             <div className="table-wrap"><div className="table-head"><span>ÜRÜN</span><span>KATEGORİ</span><span>FİYAT</span><span>DURUM</span><span aria-label="İşlemler" /></div><div className="product-list">
               {itemsLoading ? <div className="empty-state"><LoaderCircle size={21} /><strong>Menü ürünleri yükleniyor...</strong></div> : filteredItems.map((item) => <article className={`product-row${item.available ? "" : " product-unavailable"}`} key={item.id}><div className="product-cell"><div className="product-photo" role="img" aria-label={item.name} style={{ backgroundImage: `url("${item.image_url}")` }} /><div className="product-copy"><strong>{item.name}</strong><span>{item.description}</span></div></div><div className="category-cell"><span className={`category-tag ${item.category === "Sandviçler" ? "tag-sandwich" : item.category === "İçecekler" ? "tag-drink" : "tag-snack"}`}>{item.category}</span></div><div className="price-cell">{formatPrice(item.price)}</div><div className="status-cell"><button className={`availability-toggle${item.available ? " is-on" : ""}`} type="button" role="switch" aria-checked={item.available} aria-label={`${item.name} ${item.available ? "yayında" : "yayında değil"}`} onClick={() => void toggleAvailability(item)}><span /></button><span>{item.available ? "Yayında" : "Gizli"}</span></div><button className="row-more" type="button" aria-label={`${item.name} düzenle`} onClick={() => openEditItem(item)}><MoreHorizontal size={19} /></button></article>)}
               {!itemsLoading && filteredItems.length === 0 && <div className="empty-state"><Search size={21} /><strong>Aramana uygun ürün bulamadık.</strong><span>Başka bir ürün adı ya da kategori deneyebilirsin.</span></div>}
@@ -332,9 +404,19 @@ export default function MenuDashboard() {
             <label>Ürün adı<input autoFocus required maxLength={80} placeholder="Örn. Gusto özel sandviç" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
             <label>Açıklama <span className="optional-label">İSTEĞE BAĞLI</span><textarea rows={3} maxLength={240} placeholder="İçindekileri kısaca anlat..." value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
             <div className="image-upload-field"><label className="image-picker"><span className="image-field-label"><ImagePlus size={14} /> Cihazdan fotoğraf seç</span><input className="image-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} /><span className="image-upload-hint">{selectedImage ? selectedImage.name : "JPG, PNG veya WebP · En fazla 5 MB"}</span></label><div className="image-preview" role="img" aria-label="Ürün fotoğrafı önizlemesi" style={{ backgroundImage: `url("${imagePreview || form.image_url}")` }} /></div>
-            <div className="form-row"><label>Fiyat<input required type="number" min="1" step="1" placeholder="₺ 0" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} /></label><label>Kategori<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}><option>Sandviçler</option><option>Atıştırmalıklar</option><option>İçecekler</option></select></label></div>
+            <div className="form-row"><label>Fiyat<input required type="number" min="1" step="1" placeholder="₺ 0" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} /></label><label>Kategori<select required value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}><option value="" disabled>Kategori seç</option>{menuCategories.map((category) => <option key={category}>{category}</option>)}</select></label></div>
             <div className="modal-actions">{editingItemId && <button className="delete-button" type="button" onClick={() => void deleteItem()}><Trash2 size={15} /> Ürünü sil</button>}<button className="secondary-button" type="button" onClick={() => setIsModalOpen(false)}>Vazgeç</button><button className="primary-button" type="submit" disabled={isSaving}>{isSaving ? <LoaderCircle size={15} /> : editingItemId ? <Save size={15} /> : <Plus size={16} />}{isSaving ? "Kaydediliyor..." : editingItemId ? "Değişiklikleri kaydet" : "Ürünü ekle"}</button></div>
           </form>
+        </section>
+      </div>}
+      {isCategoryModalOpen && <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setIsCategoryModalOpen(false); }}>
+        <section className="product-modal category-modal" role="dialog" aria-modal="true" aria-labelledby="category-modal-title">
+          <div className="modal-heading"><div><span className="section-kicker">MENÜ DÜZENİ</span><h2 id="category-modal-title">Kategoriler</h2></div><button className="icon-button" type="button" aria-label="Pencereyi kapat" onClick={() => setIsCategoryModalOpen(false)}><X size={19} /></button></div>
+          <form onSubmit={addCategory}><label>Yeni kategori<input autoFocus required maxLength={40} placeholder="Örn. Kahvaltılıklar" value={newCategory} onChange={(event) => setNewCategory(event.target.value)} /></label><button className="primary-button" type="submit" disabled={isSavingCategory}>{isSavingCategory ? <LoaderCircle size={15} /> : <Plus size={15} />}{isSavingCategory ? "Ekleniyor..." : "Kategori ekle"}</button></form>
+          <div className="category-manager-list">{menuCategories.map((category) => {
+            const productCount = items.filter((item) => item.category === category).length;
+            return <div className="category-manager-row" key={category}><div><strong>{category}</strong><small>{productCount > 0 ? `${productCount} ürün · silmek için önce taşı` : "Ürün yok"}</small></div><button className="icon-button category-remove" type="button" aria-label={`${category} kategorisini sil`} title={productCount > 0 ? "Önce ürünleri başka kategoriye taşı" : "Kategoriyi sil"} disabled={productCount > 0 || isSavingCategory} onClick={() => void removeCategory(category)}><Trash2 size={15} /></button></div>;
+          })}{menuCategories.length === 0 && <div className="empty-state"><strong>Henüz kategori yok.</strong><span>Menüyü düzenlemek için bir kategori ekle.</span></div>}</div>
         </section>
       </div>}
     </div>
